@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>LinguaSwift - Instant Translation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+  }
+  textarea::-webkit-scrollbar { width: 6px; }
+  textarea::-webkit-scrollbar-thumb { background-color: #dfe3e8; border-radius: 10px; }
+  .translation-container { min-height: calc(100vh - 64px - 64px); }
+
+  /* Language dropdown */
+  .lang-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 100;
+    background: white;
+    border: 1px solid #c1c6d6;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    min-width: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+  }
+  .dark .lang-dropdown {
+    background: #2d3135;
+    border-color: #414754;
+  }
+  .lang-dropdown.open { display: block; }
+  .lang-option {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #181c20;
+    transition: background 0.15s;
+  }
+  .dark .lang-option { color: #e8eaed; }
+  .lang-option:hover { background: #ebeef4; }
+  .dark .lang-option:hover { background: #414754; }
+  .lang-option.selected { color: #005bc0; font-weight: 500; }
+
+  /* Error banner */
+  #errorBanner {
+    display: none;
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    background: #ffdad6;
+    border: 1px solid #ba1a1a;
+    color: #93000a;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    max-width: 90vw;
+    text-align: center;
+  }
+  #errorBanner.show { display: flex; align-items: center; gap: 8px; }
+
+  /* Toast */
+  #toast {
+    display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #181c20;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 300;
+  }
+  #toast.show { display: block; }
+
+  /* TTS speaking pulse */
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(0,91,191,0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(0,91,191,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,91,191,0); }
+  }
+  .tts-speaking { animation: pulse-ring 1s infinite; border-radius: 50%; }
+
+  /* History card highlight */
+  .history-card { transition: all 0.2s; }
+  .history-card:hover { transform: translateY(-2px); }
+</style>
+
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface-bright": "#f7f9ff",
+          "tertiary": "#9e4300",
+          "tertiary-fixed-dim": "#ffb691",
+          "on-primary-fixed": "#001a41",
+          "surface-container": "#ebeef4",
+          "on-surface": "#181c20",
+          "surface-container-highest": "#dfe3e8",
+          "outline-variant": "#c1c6d6",
+          "on-primary-container": "#ffffff",
+          "on-secondary": "#ffffff",
+          "error": "#ba1a1a",
+          "surface-tint": "#005bc0",
+          "surface-dim": "#d7dae0",
+          "inverse-primary": "#adc7ff",
+          "surface": "#f7f9ff",
+          "outline": "#727785",
+          "background": "#f7f9ff",
+          "on-surface-variant": "#414754",
+          "on-primary": "#ffffff",
+          "on-error": "#ffffff",
+          "secondary-container": "#4d8efe",
+          "primary": "#005bbf",
+          "surface-container-high": "#e5e8ee",
+          "secondary-fixed": "#d8e2ff",
+          "on-background": "#181c20",
+          "secondary": "#005ac1",
+          "primary-container": "#1a73e8",
+          "surface-container-lowest": "#ffffff",
+          "surface-variant": "#dfe3e8",
+          "inverse-surface": "#2d3135",
+          "error-container": "#ffdad6",
+          "tertiary-container": "#c55500",
+          "primary-fixed-dim": "#adc7ff",
+          "surface-container-low": "#f1f4fa",
+          "on-secondary-container": "#00285c"
+        },
+        borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+        spacing: { "xl": "32px", "gutter": "24px", "xs": "4px", "md": "16px", "sm": "8px", "unit": "4px", "lg": "24px", "container-max": "1280px" },
+        fontFamily: { "label-sm": ["Inter"], "body-sm": ["Inter"], "body-md": ["Inter"], "headline-lg": ["Inter"], "headline-md": ["Inter"], "body-lg": ["Inter"], "label-lg": ["Inter"] },
+        fontSize: {
+          "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+          "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+          "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+          "headline-md": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+          "body-lg": ["18px", {"lineHeight": "26px", "fontWeight": "400"}],
+          "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}]
+        }
+      }
+    }
+  }
+</script>
+</head>
+
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md transition-colors duration-300">
+
+<!-- Error Banner -->
+<div id="errorBanner">
+  <span class="material-symbols-outlined text-[18px]">error</span>
+  <span id="errorMsg">Translation service unavailable. Please try again.</span>
+  <button onclick="closeError()" class="ml-4 font-bold text-lg leading-none">&times;</button>
+</div>
+
+<!-- Toast -->
+<div id="toast">Copied to clipboard ✓</div>
+
+<!-- Header -->
+<header class="bg-surface dark:bg-inverse-surface border-b border-outline-variant dark:border-outline sticky top-0 z-50">
+  <div class="flex justify-between items-center px-lg h-16 w-full max-w-container-max mx-auto">
+    <div class="flex items-center gap-sm">
+      <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim text-3xl">translate</span>
+      <h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">LinguaSwift</h1>
+    </div>
+    <div class="flex items-center gap-md">
+      <nav class="hidden md:flex gap-md">
+        <a class="font-label-lg text-label-lg px-md py-sm text-primary dark:text-primary-fixed-dim border-b-2 border-primary transition-colors" href="#">Translator</a>
+        <a class="font-label-lg text-label-lg px-md py-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" href="#">History</a>
+        <a class="font-label-lg text-label-lg px-md py-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" href="#">Saved</a>
+      </nav>
+      <button class="p-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors active:scale-95 duration-200" id="darkModeToggle" title="Toggle dark mode">
+        <span class="material-symbols-outlined" id="darkModeIcon">dark_mode</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="flex-grow translation-container flex flex-col items-center justify-start py-xl px-lg">
+  <div class="w-full max-w-container-max grid grid-cols-1 md:grid-cols-12 gap-gutter items-stretch">
+
+    <!-- Left Panel: Source -->
+    <div class="md:col-span-5 flex flex-col gap-sm">
+      <div class="flex items-center justify-between px-xs">
+        <!-- Source language selector -->
+        <div class="relative" id="sourceLangWrapper">
+          <button class="flex items-center gap-xs font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high px-md py-sm rounded-lg transition-colors" id="sourceLangBtn">
+            <span id="sourceLangLabel">Detecting...</span>
+            <span class="material-symbols-outlined text-[20px]">expand_more</span>
+          </button>
+          <div class="lang-dropdown" id="sourceLangDropdown">
+            <div class="lang-option" data-code="auto">Detect Language</div>
+          </div>
+        </div>
+        <div class="flex gap-xs">
+          <button class="p-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" id="micBtn" title="Voice input">
+            <span class="material-symbols-outlined" id="micIcon">mic</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Source textarea -->
+      <div class="relative bg-surface-container-lowest border border-outline-variant rounded-xl focus-within:border-primary-container focus-within:ring-1 focus-within:ring-primary-container transition-all h-[320px] md:h-[400px] flex flex-col">
+        <textarea
+          class="w-full flex-grow p-lg bg-transparent border-none focus:ring-0 resize-none font-body-lg text-body-lg text-on-surface placeholder:text-outline"
+          id="sourceInput"
+          placeholder="Type to translate..."
+          maxlength="5000"
+        ></textarea>
+        <div class="p-md flex justify-between items-center text-on-surface-variant">
+          <button class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" id="ttsSourceBtn" title="Listen">volume_up</button>
+          <div class="flex items-center gap-md">
+            <span class="font-label-sm text-label-sm" id="charCount">0 / 5,000</span>
+            <button class="p-xs text-on-surface-variant hover:text-error transition-colors" id="clearBtn" title="Clear text">
+              <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center: Swap -->
+    <div class="md:col-span-2 flex items-center justify-center -my-md md:my-0 md:border-x border-outline-variant">
+      <button class="bg-surface-container-lowest border border-outline-variant p-md rounded-full shadow-sm hover:shadow-md hover:bg-surface-container-high text-primary transition-all active:rotate-180 duration-500 z-10" id="swapBtn" title="Swap languages">
+        <span class="material-symbols-outlined text-2xl">swap_horiz</span>
+      </button>
+    </div>
+
+    <!-- Right Panel: Output -->
+    <div class="md:col-span-5 flex flex-col gap-sm">
+      <div class="flex items-center justify-between px-xs">
+        <!-- Target language selector -->
+        <div class="relative" id="targetLangWrapper">
+          <button class="flex items-center gap-xs font-label-lg text-label-lg text-on-surface-variant hover:bg-surface-container-high px-md py-sm rounded-lg transition-colors" id="targetLangBtn">
+            <span id="targetLangLabel">Spanish</span>
+            <span class="material-symbols-outlined text-[20px]">expand_more</span>
+          </button>
+          <div class="lang-dropdown" id="targetLangDropdown"></div>
+        </div>
+        <div class="flex gap-xs">
+          <button class="p-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" id="starBtn" title="Save translation">
+            <span class="material-symbols-outlined" id="starIcon">star</span>
+          </button>
+          <button class="p-sm text-on-surface-variant hover:bg-surface-container rounded-full transition-colors" id="shareBtn" title="Share">
+            <span class="material-symbols-outlined">share</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Output area -->
+      <div class="relative bg-surface-container-low border border-outline-variant rounded-xl h-[320px] md:h-[400px] flex flex-col">
+        <div class="w-full flex-grow p-lg font-body-lg text-body-lg text-on-surface overflow-y-auto whitespace-pre-wrap select-text" id="outputArea"></div>
+        <!-- Detected language badge -->
+        <div id="detectedBadge" class="hidden absolute top-3 right-3 bg-primary/10 text-primary font-label-sm text-label-sm px-sm py-xs rounded-full"></div>
+        <!-- Loading spinner -->
+        <div class="absolute inset-0 flex items-center justify-center bg-surface-container-low/50 rounded-xl hidden" id="loadingSpinner">
+          <div class="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        </div>
+        <div class="p-md flex justify-between items-center text-on-surface-variant">
+          <div class="flex gap-md">
+            <button class="material-symbols-outlined cursor-pointer hover:text-primary transition-colors" id="ttsOutputBtn" title="Listen">volume_up</button>
+          </div>
+          <button class="p-sm hover:bg-surface-container rounded-full transition-colors active:scale-90" id="copyBtn" title="Copy translation">
+            <span class="material-symbols-outlined" id="copyIcon">content_copy</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent History Section -->
+  <section class="w-full max-w-container-max mt-xl">
+    <h2 class="font-headline-md text-headline-md text-on-surface mb-md px-xs">Recent History</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-lg" id="historyContainer">
+      <!-- Populated by JS -->
+      <div class="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl text-on-surface-variant text-body-sm col-span-3 text-center py-xl" id="historyEmpty">
+        Your translations will appear here
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature cards -->
+  <section class="w-full max-w-container-max mt-xl grid grid-cols-1 md:grid-cols-3 gap-lg">
+    <div class="bg-surface-container-low p-lg rounded-xl flex items-start gap-md group hover:bg-surface-container transition-colors cursor-pointer">
+      <div class="bg-primary/10 p-md rounded-lg text-primary">
+        <span class="material-symbols-outlined">history</span>
+      </div>
+      <div>
+        <h3 class="font-label-lg text-label-lg text-on-surface mb-xs">Recent Translations</h3>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Review your last 50 queries across all devices.</p>
+      </div>
+    </div>
+    <div class="bg-surface-container-low p-lg rounded-xl flex items-start gap-md group hover:bg-surface-container transition-colors cursor-pointer">
+      <div class="bg-secondary/10 p-md rounded-lg text-secondary">
+        <span class="material-symbols-outlined">edit_note</span>
+      </div>
+      <div>
+        <h3 class="font-label-lg text-label-lg text-on-surface mb-xs">Document Translation</h3>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Upload PDF, .docx, or .pptx files to translate instantly.</p>
+      </div>
+    </div>
+    <div class="bg-surface-container-low p-lg rounded-xl flex items-start gap-md group hover:bg-surface-container transition-colors cursor-pointer">
+      <div class="bg-tertiary/10 p-md rounded-lg text-tertiary">
+        <span class="material-symbols-outlined">photo_camera</span>
+      </div>
+      <div>
+        <h3 class="font-label-lg text-label-lg text-on-surface mb-xs">Image-to-Text</h3>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">Translate text from images or real-time camera feed.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Footer -->
+<footer class="bg-surface-container-low dark:bg-surface-dim border-t border-outline-variant dark:border-outline">
+  <div class="flex flex-col md:flex-row justify-between items-center py-md px-lg w-full max-w-container-max mx-auto">
+    <div class="flex flex-col md:flex-row items-center gap-md">
+      <span class="font-label-lg text-label-lg font-bold text-on-surface">LinguaSwift</span>
+      <span class="font-body-sm text-body-sm text-secondary dark:text-secondary-fixed">© 2024 LinguaSwift. Built for clarity and speed.</span>
+    </div>
+    <nav class="flex gap-lg mt-md md:mt-0">
+      <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy</a>
+      <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Terms</a>
+      <a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Help</a>
+    </nav>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════
+     JAVASCRIPT — Full production logic
+     ═══════════════════════════════════════════════ -->
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────────────────
+// Change this to your Render URL when deployed:
+// const API_BASE = 'https://your-app.onrender.com/api/v1';
+const API_BASE = 'http://localhost:8000/api/v1';
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let languages = [];          // [{code, name}] from backend
+let sourceLang = 'auto';
+let targetLang = 'es';
+let debounceTimer = null;
+let translationHistory = JSON.parse(localStorage.getItem('ls_history') || '[]');
+let isSpeaking = false;
+
+// ── DOM REFS ───────────────────────────────────────────────────────────────
+const sourceInput      = document.getElementById('sourceInput');
+const outputArea       = document.getElementById('outputArea');
+const charCount        = document.getElementById('charCount');
+const loadingSpinner   = document.getElementById('loadingSpinner');
+const copyBtn          = document.getElementById('copyBtn');
+const copyIcon         = document.getElementById('copyIcon');
+const swapBtn          = document.getElementById('swapBtn');
+const clearBtn         = document.getElementById('clearBtn');
+const darkModeToggle   = document.getElementById('darkModeToggle');
+const darkModeIcon     = document.getElementById('darkModeIcon');
+const sourceLangBtn    = document.getElementById('sourceLangBtn');
+const sourceLangLabel  = document.getElementById('sourceLangLabel');
+const sourceLangDD     = document.getElementById('sourceLangDropdown');
+const targetLangBtn    = document.getElementById('targetLangBtn');
+const targetLangLabel  = document.getElementById('targetLangLabel');
+const targetLangDD     = document.getElementById('targetLangDropdown');
+const ttsSourceBtn     = document.getElementById('ttsSourceBtn');
+const ttsOutputBtn     = document.getElementById('ttsOutputBtn');
+const micBtn           = document.getElementById('micBtn');
+const micIcon          = document.getElementById('micIcon');
+const errorBanner      = document.getElementById('errorBanner');
+const errorMsg         = document.getElementById('errorMsg');
+const detectedBadge    = document.getElementById('detectedBadge');
+const historyContainer = document.getElementById('historyContainer');
+const historyEmpty     = document.getElementById('historyEmpty');
+const shareBtn         = document.getElementById('shareBtn');
+const starBtn          = document.getElementById('starBtn');
+const starIcon         = document.getElementById('starIcon');
+const toast            = document.getElementById('toast');
+
+// ── DARK MODE ──────────────────────────────────────────────────────────────
+const savedTheme = localStorage.getItem('ls_theme');
+if (savedTheme === 'dark') {
+  document.documentElement.classList.add('dark');
+  darkModeIcon.innerText = 'light_mode';
+}
+darkModeToggle.addEventListener('click', () => {
+  const isDark = document.documentElement.classList.toggle('dark');
+  darkModeIcon.innerText = isDark ? 'light_mode' : 'dark_mode';
+  localStorage.setItem('ls_theme', isDark ? 'dark' : 'light');
+});
+
+// ── API HELPERS ────────────────────────────────────────────────────────────
+async function fetchLanguages() {
+  try {
+    const res = await fetch(`${API_BASE}/languages`);
+    if (!res.ok) throw new Error('Failed to load languages');
+    const data = await res.json();
+    languages = data;
+    buildDropdowns(data);
+    // Set initial label
+    const esLang = data.find(l => l.code === 'es');
+    if (esLang) targetLangLabel.textContent = esLang.name;
+    sourceLangLabel.textContent = 'Detect Language';
+  } catch (err) {
+    // Fallback language list if backend is offline
+    const fallback = [
+      {code:'en',name:'English'},{code:'es',name:'Spanish'},{code:'fr',name:'French'},
+      {code:'de',name:'German'},{code:'it',name:'Italian'},{code:'pt',name:'Portuguese'},
+      {code:'ru',name:'Russian'},{code:'zh',name:'Chinese'},{code:'ja',name:'Japanese'},
+      {code:'ar',name:'Arabic'},{code:'hi',name:'Hindi'},{code:'ko',name:'Korean'},
+      {code:'nl',name:'Dutch'},{code:'pl',name:'Polish'},{code:'tr',name:'Turkish'},
+    ];
+    languages = fallback;
+    buildDropdowns(fallback);
+    targetLangLabel.textContent = 'Spanish';
+    sourceLangLabel.textContent = 'Detect Language';
+  }
+}
+
+async function translateText(text, source, target) {
+  const res = await fetch(`${API_BASE}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, source_lang: source, target_lang: target })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Error ${res.status}`);
+  }
+  return res.json(); // { translated_text, source_lang, target_lang, detected_language }
+}
+
+// ── DROPDOWNS ──────────────────────────────────────────────────────────────
+function buildDropdowns(langs) {
+  // Source dropdown: auto-detect + all languages
+  sourceLangDD.innerHTML = '';
+  const autoOpt = document.createElement('div');
+  autoOpt.className = 'lang-option' + (sourceLang === 'auto' ? ' selected' : '');
+  autoOpt.dataset.code = 'auto';
+  autoOpt.textContent = 'Detect Language';
+  autoOpt.addEventListener('click', () => setSourceLang('auto', 'Detect Language'));
+  sourceLangDD.appendChild(autoOpt);
+
+  langs.forEach(lang => {
+    const opt = document.createElement('div');
+    opt.className = 'lang-option' + (lang.code === sourceLang ? ' selected' : '');
+    opt.dataset.code = lang.code;
+    opt.textContent = lang.name;
+    opt.addEventListener('click', () => setSourceLang(lang.code, lang.name));
+    sourceLangDD.appendChild(opt);
+  });
+
+  // Target dropdown: all languages
+  targetLangDD.innerHTML = '';
+  langs.forEach(lang => {
+    const opt = document.createElement('div');
+    opt.className = 'lang-option' + (lang.code === targetLang ? ' selected' : '');
+    opt.dataset.code = lang.code;
+    opt.textContent = lang.name;
+    opt.addEventListener('click', () => setTargetLang(lang.code, lang.name));
+    targetLangDD.appendChild(opt);
+  });
+}
+
+function setSourceLang(code, name) {
+  sourceLang = code;
+  sourceLangLabel.textContent = name;
+  closeDropdowns();
+  if (sourceInput.value.trim()) triggerTranslation();
+}
+
+function setTargetLang(code, name) {
+  targetLang = code;
+  targetLangLabel.textContent = name;
+  closeDropdowns();
+  if (sourceInput.value.trim()) triggerTranslation();
+}
+
+function closeDropdowns() {
+  sourceLangDD.classList.remove('open');
+  targetLangDD.classList.remove('open');
+}
+
+sourceLangBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  targetLangDD.classList.remove('open');
+  sourceLangDD.classList.toggle('open');
+});
+
+targetLangBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sourceLangDD.classList.remove('open');
+  targetLangDD.classList.toggle('open');
+});
+
+document.addEventListener('click', closeDropdowns);
+
+// ── TRANSLATION ────────────────────────────────────────────────────────────
+function triggerTranslation() {
+  clearTimeout(debounceTimer);
+  const text = sourceInput.value;
+  charCount.textContent = `${text.length} / 5,000`;
+
+  if (!text.trim()) {
+    outputArea.textContent = '';
+    loadingSpinner.classList.add('hidden');
+    detectedBadge.classList.add('hidden');
+    return;
+  }
+
+  loadingSpinner.classList.remove('hidden');
+  outputArea.textContent = '';
+
+  debounceTimer = setTimeout(async () => {
+    try {
+      hideError();
+      const result = await translateText(text, sourceLang, targetLang);
+      outputArea.textContent = result.translated_text;
+
+      // Show detected language badge
+      if (sourceLang === 'auto' && result.detected_language) {
+        const detLang = languages.find(l => l.code === result.detected_language);
+        if (detLang) {
+          detectedBadge.textContent = `Detected: ${detLang.name}`;
+          detectedBadge.classList.remove('hidden');
+        }
+      } else {
+        detectedBadge.classList.add('hidden');
+      }
+
+      // Save to history
+      addToHistory(text, result.translated_text, sourceLang, targetLang, result.detected_language);
+
+    } catch (err) {
+      showError(err.message || 'Translation failed. Please try again.');
+      outputArea.textContent = '';
+    } finally {
+      loadingSpinner.classList.add('hidden');
+    }
+  }, 500);
+}
+
+sourceInput.addEventListener('input', triggerTranslation);
+
+// ── SWAP ───────────────────────────────────────────────────────────────────
+swapBtn.addEventListener('click', () => {
+  if (sourceLang === 'auto') return; // can't swap when auto-detecting
+
+  const tempText = sourceInput.value;
+  const tempCode = sourceLang;
+  const tempLabel = sourceLangLabel.textContent;
+
+  sourceInput.value = outputArea.textContent;
+  outputArea.textContent = tempText;
+
+  sourceLang = targetLang;
+  sourceLangLabel.textContent = targetLangLabel.textContent;
+  targetLang = tempCode;
+  targetLangLabel.textContent = tempLabel;
+
+  detectedBadge.classList.add('hidden');
+  if (sourceInput.value.trim()) triggerTranslation();
+});
+
+// ── CLEAR ──────────────────────────────────────────────────────────────────
+clearBtn.addEventListener('click', () => {
+  sourceInput.value = '';
+  outputArea.textContent = '';
+  charCount.textContent = '0 / 5,000';
+  detectedBadge.classList.add('hidden');
+  hideError();
+  sourceInput.focus();
+});
+
+// ── COPY ───────────────────────────────────────────────────────────────────
+copyBtn.addEventListener('click', () => {
+  const text = outputArea.textContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    copyIcon.textContent = 'check';
+    showToast('Copied to clipboard ✓');
+    setTimeout(() => { copyIcon.textContent = 'content_copy'; }, 2000);
+  });
+});
+
+// ── TEXT TO SPEECH ─────────────────────────────────────────────────────────
+function speak(text, langCode) {
+  if (!text || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  if (langCode && langCode !== 'auto') utt.lang = langCode;
+  window.speechSynthesis.speak(utt);
+}
+
+ttsSourceBtn.addEventListener('click', () => speak(sourceInput.value, sourceLang));
+ttsOutputBtn.addEventListener('click', () => speak(outputArea.textContent, targetLang));
+
+// ── SPEECH TO TEXT ─────────────────────────────────────────────────────────
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognition) {
+  const recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    micIcon.textContent = 'mic_off';
+    micBtn.classList.add('text-error');
+  };
+  recognition.onend = () => {
+    micIcon.textContent = 'mic';
+    micBtn.classList.remove('text-error');
+  };
+  recognition.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    sourceInput.value = transcript;
+    if (e.results[e.results.length - 1].isFinal) triggerTranslation();
+    else charCount.textContent = `${transcript.length} / 5,000`;
+  };
+  recognition.onerror = (e) => {
+    micIcon.textContent = 'mic';
+    micBtn.classList.remove('text-error');
+  };
+
+  let isListening = false;
+  micBtn.addEventListener('click', () => {
+    isListening ? recognition.stop() : recognition.start();
+    isListening = !isListening;
+  });
+} else {
+  micBtn.title = 'Speech input not supported in this browser';
+  micBtn.style.opacity = '0.4';
+}
+
+// ── SHARE ──────────────────────────────────────────────────────────────────
+shareBtn.addEventListener('click', () => {
+  const src = sourceInput.value;
+  const out = outputArea.textContent;
+  if (!out) return;
+  const shareText = `Translation (LinguaSwift)\n\nOriginal: ${src}\nTranslated: ${out}`;
+  if (navigator.share) {
+    navigator.share({ title: 'LinguaSwift Translation', text: shareText });
+  } else {
+    navigator.clipboard.writeText(shareText);
+    showToast('Translation copied for sharing ✓');
+  }
+});
+
+// ── STAR / SAVE ────────────────────────────────────────────────────────────
+let saved = JSON.parse(localStorage.getItem('ls_saved') || '[]');
+starBtn.addEventListener('click', () => {
+  const src = sourceInput.value;
+  const out = outputArea.textContent;
+  if (!out) return;
+  saved.unshift({ src, out, sourceLang, targetLang, time: Date.now() });
+  saved = saved.slice(0, 50);
+  localStorage.setItem('ls_saved', JSON.stringify(saved));
+  starIcon.textContent = 'star';
+  starIcon.style.color = '#f59e0b';
+  showToast('Translation saved ⭐');
+  setTimeout(() => { starIcon.style.color = ''; }, 2000);
+});
+
+// ── HISTORY ────────────────────────────────────────────────────────────────
+function addToHistory(srcText, outText, srcCode, tgtCode, detectedCode) {
+  const srcLang = languages.find(l => l.code === (detectedCode || srcCode));
+  const tgtLang = languages.find(l => l.code === tgtCode);
+  const srcName = srcLang ? srcLang.name : srcCode.toUpperCase();
+  const tgtName = tgtLang ? tgtLang.name : tgtCode.toUpperCase();
+
+  translationHistory.unshift({
+    srcText: srcText.slice(0, 120),
+    outText: outText.slice(0, 120),
+    pair: `${srcName} → ${tgtName}`,
+    time: Date.now()
+  });
+  translationHistory = translationHistory.slice(0, 20);
+  localStorage.setItem('ls_history', JSON.stringify(translationHistory));
+  renderHistory();
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff/60000)} min ago`;
+  if (diff < 86400000) return `${Math.floor(diff/3600000)} hr ago`;
+  return `${Math.floor(diff/86400000)} days ago`;
+}
+
+function renderHistory() {
+  if (translationHistory.length === 0) {
+    historyEmpty.style.display = 'block';
+    return;
+  }
+  historyEmpty.style.display = 'none';
+
+  // Remove old cards (keep historyEmpty div)
+  const cards = historyContainer.querySelectorAll('.history-card');
+  cards.forEach(c => c.remove());
+
+  translationHistory.slice(0, 3).forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'history-card bg-surface-container-lowest border border-outline-variant p-lg rounded-xl hover:shadow-md transition-all cursor-pointer group';
+    card.innerHTML = `
+      <div class="flex justify-between items-center mb-sm">
+        <span class="font-label-sm text-label-sm text-primary">${item.pair}</span>
+        <span class="font-label-sm text-label-sm text-on-surface-variant">${timeAgo(item.time)}</span>
+      </div>
+      <p class="font-body-md text-body-md text-on-surface line-clamp-2">${item.srcText}</p>
+      <p class="font-body-sm text-body-sm text-on-surface-variant mt-xs line-clamp-1">${item.outText}</p>
+    `;
+    card.addEventListener('click', () => {
+      sourceInput.value = item.srcText;
+      triggerTranslation();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    historyContainer.insertBefore(card, historyEmpty);
+  });
+}
+
+// ── ERROR BANNER ───────────────────────────────────────────────────────────
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorBanner.classList.add('show');
+}
+function hideError() {
+  errorBanner.classList.remove('show');
+}
+function closeError() { hideError(); }
+
+// ── TOAST ──────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ── KEYBOARD SHORTCUTS ─────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    clearTimeout(debounceTimer);
+    if (sourceInput.value.trim()) triggerTranslation();
+  }
+  if (e.key === 'Escape') {
+    closeDropdowns();
+    hideError();
+  }
+});
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+fetchLanguages();
+renderHistory();
+</script>
+</body>
+</html>
